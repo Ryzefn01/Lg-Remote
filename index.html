@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>LG AI Remote</title>
+<style>
+  :root {
+    --glass: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.18);
+    --accent: #38bdf8;
+    --accent-glow: rgba(56, 189, 248, 0.45);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  body {
+    margin: 0; padding: 18px 16px 34px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+    background: radial-gradient(circle at 20% 10%, #1e293b 0%, #090d16 55%, #030508 100%);
+    color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; gap: 14px;
+  }
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.2);
+  }
+  .header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+  .status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+  .dot.ok { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+  button {
+    background: rgba(255,255,255,0.07); color: #fff; border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: transform 0.1s, background 0.15s;
+  }
+  button:active { transform: scale(0.93); background: rgba(255,255,255,0.22); }
+  .icon-btn { padding: 10px 14px; font-size: 14px; }
+  .power-off { color: #f87171; border-color: rgba(248,113,113,0.35); }
+
+  /* AI Voice Orb */
+  .ai-box { padding: 16px; display: flex; flex-direction: column; gap: 12px; align-items: center; }
+  .mic-btn {
+    width: 74px; height: 74px; border-radius: 50%;
+    background: linear-gradient(135deg, rgba(56,189,248,0.35), rgba(168,85,247,0.35));
+    border: 1.5px solid rgba(255,255,255,0.35);
+    font-size: 28px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 24px var(--accent-glow);
+  }
+  .mic-btn.listening { animation: pulse 1.2s infinite; background: linear-gradient(135deg, #ef4444, #a855f7); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); } 70% { box-shadow: 0 0 0 22px rgba(239,68,68,0); } 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } }
+  .ai-row { display: flex; width: 100%; gap: 8px; }
+  input {
+    flex: 1; background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 14px; padding: 11px 14px; color: #fff; font-size: 14px; outline: none;
+    user-select: text;
+  }
+  .ai-card {
+    width: 100%; background: rgba(56,189,248,0.12); border: 1px solid rgba(56,189,248,0.35);
+    border-radius: 16px; padding: 12px; font-size: 13px; line-height: 1.45; display: none;
+  }
+
+  /* Apps */
+  .apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .app-btn { padding: 12px 4px; font-size: 12px; text-align: center; }
+
+  /* D-Pad & Vol */
+  .controls { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 12px; align-items: center; padding: 16px; }
+  .col { display: flex; flex-direction: column; gap: 10px; }
+  .col button { padding: 16px 0; font-size: 16px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; aspect-ratio: 1; }
+  .dpad button { border-radius: 18px; font-size: 18px; }
+  .ok-btn { background: rgba(56,189,248,0.25); border-color: rgba(56,189,248,0.5); font-weight: 700; }
+
+  /* Settings Drawer */
+  .settings { padding: 14px; display: none; flex-direction: column; gap: 10px; font-size: 13px; }
+  .settings.open { display: flex; }
+  .help-note { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+  <div class="glass header">
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Deconectat</span></div>
+    <div style="display:flex;gap:8px;">
+      <button class="icon-btn" onclick="toggleSettings()">⚙️</button>
+      <button class="icon-btn power-off" onclick="sendUri('ssap://system/turnOff')">⏻</button>
+    </div>
+  </div>
+
+  <div class="glass settings" id="settingsBox">
+    <div><strong>Configurare (salvată privat pe telefon)</strong></div>
+    <input id="tvIp" placeholder="IP TV (ex: 192.168.1.167)" value="192.168.1.167">
+    <input id="apiKey" type="password" placeholder="Lipește aici cheia Gemini API">
+    <div style="display:flex;gap:8px;">
+      <button style="flex:1;padding:10px;background:rgba(56,189,248,0.3)" onclick="saveSettings()">Salvează & Conectează</button>
+      <button style="padding:10px;" onclick="trustCert()">Aprobă Certificat TV</button>
+    </div>
+    <div class="help-note">Dacă nu se conectează prima dată: apasă <b>Aprobă Certificat TV</b> -> Show Details -> Visit this website, apoi revino aici și apasă <b>Accept</b> pe TV.</div>
+  </div>
+
+  <div class="glass ai-box">
+    <button class="mic-btn" id="micBtn" onclick="startVoice()">🎙️</button>
+    <div style="font-size:12px;color:#cbd5e1;" id="voiceHint">Apasă microfonul: „Surprinde-mă cu un film amuzant”</div>
+    <div class="ai-row">
+      <input id="aiInput" placeholder="Sau scrie aici ce vrei pe TV..." onkeydown="if(event.key==='Enter')askAI()">
+      <button style="padding:0 16px;background:rgba(56,189,248,0.28)" onclick="askAI()">✨</button>
+    </div>
+    <div class="ai-card" id="aiCard"></div>
+  </div>
+
+  <div class="apps">
+    <button class="glass app-btn" onclick="launchApp('youtube.leanback.v4')">YouTube</button>
+    <button class="glass app-btn" onclick="launchApp('netflix')">Netflix</button>
+    <button class="glass app-btn" onclick="launchApp('com.hbo.hbomax')">HBO Max</button>
+    <button class="glass app-btn" onclick="launchApp('spotify-beehive')">Spotify</button>
+  </div>
+
+  <div class="glass controls">
+    <div class="col">
+      <button onclick="sendUri('ssap://audio/volumeUp')">VOL +</button>
+      <button onclick="sendUri('ssap://audio/setMute', {mute: true})">MUTE</button>
+      <button onclick="sendUri('ssap://audio/volumeDown')">VOL -</button>
+    </div>
+    <div class="dpad">
+      <div></div><button onclick="sendBtn('UP')">▲</button><div></div>
+      <button onclick="sendBtn('LEFT')">◀</button><button class="ok-btn" onclick="sendBtn('ENTER')">OK</button><button onclick="sendBtn('RIGHT')">▶</button>
+      <button onclick="sendBtn('BACK')">↩</button><button onclick="sendBtn('DOWN')">▼</button><button onclick="sendBtn('HOME')">⌂</button>
+    </div>
+    <div class="col">
+      <button onclick="sendUri('ssap://tv/channelUp')">CH +</button>
+      <button onclick="sendUri('ssap://media.controls/play')">⏯</button>
+      <button onclick="sendUri('ssap://tv/channelDown')">CH -</button>
+    </div>
+  </div>
+
+  <div class="glass" style="padding:12px;display:flex;gap:8px;">
+    <input id="tvText" placeholder="Scrie text direct pe TV..." onkeydown="if(event.key==='Enter')typeOnTv()">
+    <button style="padding:0 16px;" onclick="typeOnTv()">Trimite</button>
+  </div>
+
+<script>
+let ws = null, pointerWs = null, msgId = 1;
+const $ = id => document.getElementById(id);
+
+window.onload = () => {
+  if (localStorage.getItem('tv_ip')) $('tvIp').value = localStorage.getItem('tv_ip');
+  if (localStorage.getItem('gemini_key')) $('apiKey').value = localStorage.getItem('gemini_key');
+  if (!localStorage.getItem('gemini_key')) $('settingsBox').classList.add('open');
+  connectTV();
+};
+
+function toggleSettings() { $('settingsBox').classList.toggle('open'); }
+function trustCert() { window.open(`https://${$('tvIp').value.trim()}:3001`, '_blank'); }
+
+function saveSettings() {
+  localStorage.setItem('tv_ip', $('tvIp').value.trim());
+  localStorage.setItem('gemini_key', $('apiKey').value.trim());
+  $('settingsBox').classList.remove('open');
+  connectTV();
+}
+
+function setStatus(ok, text) {
+  $('dot').className = ok ? 'dot ok' : 'dot';
+  $('statusText').innerText = text;
+}
+
+function connectTV() {
+  const ip = $('tvIp').value.trim();
+  if (ws) ws.close();
+  setStatus(false, 'Se conectează...');
+  try {
+    ws = new WebSocket(`wss://${ip}:3001`);
+    ws.onopen = () => {
+      const key = localStorage.getItem('lg_client_key');
+      const handshake = {
+        type: 'register', id: 'reg_0',
+        payload: {
+          forcePairing: false, pairingType: 'PROMPT',
+          'client-key': key || undefined,
+          manifest: {
+            manifestVersion: 1, appVersion: '1.0',
+            permissions: ['LAUNCH','LAUNCH_WEBAPP','CONTROL_AUDIO','CONTROL_POWER','READ_INSTALLED_APPS','CONTROL_INPUT_TEXT','CONTROL_MOUSE_AND_KEYBOARD','CONTROL_TV_CHANNEL']
+          }
+        }
+      };
+      ws.send(JSON.stringify(handshake));
+    };
+    ws.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.type === 'registered' && data.payload['client-key']) {
+        localStorage.setItem('lg_client_key', data.payload['client-key']);
+        setStatus(true, 'Conectat la LG TV');
+        initPointer();
+      } else if (data.type === 'response' && data.payload && data.payload.socketPath) {
+        pointerWs = new WebSocket(data.payload.socketPath);
+      }
+    };
+    ws.onerror = () => setStatus(false, 'Eroare SSL (Apasă ⚙️ -> Aprobă Certificat)');
+    ws.onclose = () => setStatus(false, 'Deconectat');
+  } catch (err) { setStatus(false, 'Eroare conexiune'); }
+}
+
+function initPointer() {
+  sendUri('ssap://com.webos.service.networkinput/getPointerInputSocket');
+}
+
+function sendUri(uri, payload = {}) {
+  if (!ws || ws.readyState !== 1) return connectTV();
+  ws.send(JSON.stringify({ id: 'cmd_' + (msgId++), type: 'request', uri, payload }));
+}
+
+function sendBtn(name) {
