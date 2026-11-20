@@ -172,7 +172,7 @@ function connectTV() {
   if (ws) ws.close();
   setStatus(false, 'Se conectează...');
   try {
-    ws = new WebSocket(`wss://${ip}:3001`);
+    ws = new WebSocket(`wss://${ip}:3000`);
     ws.onopen = () => {
       const key = localStorage.getItem('lg_client_key');
       const handshake = {
