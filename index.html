@@ -213,3 +213,80 @@ function sendUri(uri, payload = {}) {
 }
 
 function sendBtn(name) {
+  if (pointerWs && pointerWs.readyState === 1) {
+    pointerWs.send(`type:button\nname:${name}\n\n`);
+  } else { initPointer(); }
+}
+
+function launchApp(id, params = {}) {
+  sendUri('ssap://system.launcher/launch', { id, params });
+}
+
+function typeOnTv() {
+  const text = $('tvText').value;
+  if (!text) return;
+  sendUri('ssap://com.webos.service.ime/insertText', { text, replace: 0 });
+  $('tvText').value = '';
+}
+
+function startVoice() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Folosește caseta de text de dedesubt pentru comandă.'); return; }
+  const rec = new SR();
+  rec.lang = 'ro-RO';
+  $('micBtn').classList.add('listening');
+  $('voiceHint').innerText = 'Ascult... Spune ce vrei pe TV';
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    $('aiInput').value = text;
+    askAI();
+  };
+  rec.onend = () => {
+    $('micBtn').classList.remove('listening');
+    $('voiceHint').innerText = 'Apasă microfonul pentru o comandă nouă';
+  };
+  rec.start();
+}
+
+async function askAI() {
+  const prompt = $('aiInput').value.trim();
+  const key = localStorage.getItem('gemini_key');
+  if (!prompt) return;
+  if (!key) { toggleSettings(); return; }
+  const card = $('aiCard');
+  card.style.display = 'block';
+  card.innerHTML = '✨ AI-ul alege ceva pentru tine...';
+
+  const sys = `Ești asistentul unui televizor LG. Răspunde STRICT în format JSON valid (fără markdown):
+  {"action":"youtube" sau "netflix" sau "max" sau "spotify", "query":"termen de cautare exact", "title":"Titlul ales", "reason":"Scurtă descriere amuzantă în română"}
+  Dacă utilizatorul cere un film/serial (ex: "surprinde-mă cu un film amuzant"), alege un film real grozav de pe Netflix sau Max. Dacă cere muzică sau clipuri, alege youtube sau spotify.`;
+
+  try {
+    const res = await fetch(`https://googleapis.com{key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: sys + '\nCerere utilizator: ' + prompt }] }] })
+    });
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text.replace(/```json|```/g, '').trim();
+    const choice = JSON.parse(raw);
+
+    card.innerHTML = `<b>🎬 ${choice.title}</b> (${choice.action.toUpperCase()})<br>${choice.reason}`;
+
+    if (choice.action === 'youtube') {
+      launchApp('youtube.leanback.v4', { contentId: `https://youtube.com{encodeURIComponent(choice.query)}` });
+    } else if (choice.action === 'netflix') {
+      launchApp('netflix');
+    } else if (choice.action === 'max') {
+      launchApp('com.hbo.hbomax');
+    } else if (choice.action === 'spotify') {
+      launchApp('spotify-beehive');
+    }
+  } catch (err) {
+    card.innerHTML = '⚠️ Nu am putut contacta AI-ul. Verifică cheia API din ⚙️.';
+  }
+}
+</script>
+</body>
+</html>
+
